@@ -10,16 +10,36 @@
  */
 class Singleton {
     
-    // @TODO Implement Singleton functionality
+    /**
+     * Use constants for immutable types instead of variables
+     * Use descriptive names
+     */
+    const STRING_A     = 'A';
+    const STRING_A_LONG = 'stringA';
+    const STRING_B_LONG = 'stringB';
+    const STRING_NON_A = '^A';
+    const STRING_NON_B = '^B';
+    const STRING_NON_C = '^C';
+    const STRING_ABC   = 'ABC';
+    const INT_A = 1;
+    const INT_B = 2;
+
+    /**
+     * Path to files accessible by users
+     */
+    const FILES_PATH = '/path/to/files';
+    
+    /**
+     * Instance of singleton
+     * 
+     * @var Singleton
+     */
     private static $instance;
 
     /**
      * Private constructor function for singleton class 
      */
-    private function __construct()
-    {
-        echo "called...";
-    }
+    private function __construct() {}
 
     /**
      * 
@@ -38,14 +58,9 @@ class Singleton {
      * @param string $name User-provided name
      */
     public static function userEcho($name) {
-        // @TODO Validate & sanitize $name
-        if(trim($name)) {
-            $name = filter_var($name, FILTER_SANITIZE_ADD_SLASHES);
-            echo "The value of 'name' is '{$name}'";
-            return true;
-        }
-
-        echo "name parameter required.";
+        // Prevent XSS
+        $name = filter_var($name, FILTER_SANITIZE_ADD_SLASHES);
+        echo "The value of 'name' is '{$name}'";
     }
     
     /**
@@ -54,8 +69,8 @@ class Singleton {
      * @param string $name User-provided name
      */
     public static function userQuery($name) {
-        // @TODO Validate & sanitize $name
-        $name = filter_var($name, FILTER_SANITIZE_ADD_SLASHES);
+        // Prevent SQL injections
+        $name = mysql_real_escape_string($name);
         mysql_query("SELECT * FROM `test` WHERE `name` = '{$name}' LIMIT 1");
     }
     
@@ -65,28 +80,47 @@ class Singleton {
      * @param string $path User-provided file path
      */
     public static function userFile($path) {
-        // @TODO Validate & sanitize $path
-        if($path && file_exists($path)) {
-           return readfile($path);
+        // User paths are relative to this root
+        $root = self::FILES_PATH;
+
+        // The main point is to never allow users to perform directory traversal
+        // Special characters like "." and ".." and direct root access should be forbidden
+        // Validate relative path, file name and extension
+        if (!preg_match('%^(?:allowed_path_a|allowed_path_b)\/\w+\.(?:ext|png|jpe?g)$%i', $path)) {
+            throw new Exception('Invalid file path');
         }
 
-        echo "not found";
+        // File not found; also check that the path points to a file, not a directory
+        if (!is_file("$root/$path")) {
+            throw new Exception('File not found');
+        }
+
+        readfile("$root/$path");
     }
     
     /**
      * Nested conditions
      */
     public static function nestedConditions() {
-        // @TODO Untangle nested conditions
-        if ($conditionA && $conditionB && $conditionC) {
-            echo 'ABC';
-        } else if($conditionA && !$conditionB) {
-            echo 'B';
-        } else if($conditionA && $conditionB && !$conditionC) {
-            echo 'C';
-        }
+        do {
+            if (!$conditionA) {
+                echo self::STRING_NON_A;
+                break;
+            }
 
-        echo 'A';
+            if (!$conditionB) {
+                echo self::STRING_NON_B;
+                break;
+            }
+
+            if (!$conditionC) {
+                echo self::STRING_NON_C;
+                break;
+            }
+
+            echo self::STRING_ABC;
+            
+        } while(false);
     }
     
     /**
@@ -95,40 +129,26 @@ class Singleton {
      * @return boolean
      */
     public static function returnStatements() {
-        // @TODO Fix
-        // reduced to 1 condition.
         if ($conditionA) {
-            echo 'A';
-            return true;
+            echo self::STRING_A;
         }
 
-        return false;
+        // Implicit boolean conversion
+        return !!$conditionA;
     }
     
     /**
      * Null coalescing
      */
     public static function nullCoalescing() {
-        // $_REQUEST contains contents from both $_GET and $_POST so I used it and set $name variable first 
-        // and if condition true then variable value changed.
-        $name = 'nobody';
-        if (isset($_REQUEST['name'])) {
-            $name = $_REQUEST['name'];
-        }
-
-        return $name;
+        return $_GET['name'] ?? $_POST['name'] ?? 'nobody';
     }
     
     /**
      * Method chaining
      */
     public static function methodChained() {
-        // @TODO Implement method chaining
-        $mail->to('myself@domain.com')
-        ->subject('Test')
-        ->body('Hello World!')
-        ->send()
-        ;
+        return $this;
     }
     
     /**
@@ -136,19 +156,19 @@ class Singleton {
      */
     public static function checkValue($value) {
         $result = null;
-        
-        // @TODO Make all the immutable values (int, string) in this class 
-        // easily replaceable
+
+        // We should't use constants (strings, ints) locally
+        // Store them as class constants instead
         switch ($value) {
-            case 'stringA':
-                $result = 1;
+            case self::STRING_A_LONG:
+                $result = self::INT_A;
                 break;
-                
-            case 'stringB':
-                $result = 2;
+
+            case self::STRING_B_LONG:
+                $result = self::INT_B;
                 break;
         }
-        
+  
         return $result;
     }
     
@@ -159,8 +179,17 @@ class Singleton {
      * @return boolean
      */
     public static function regexTest($time24Hour) {
-        // @TODO Implement RegEx and return type; validate & sanitize input
-        return preg_match('#^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])$#', $time24Hour);
+        // Does not match "20:15"
+        // Falsely matches "0:00:00"
+        # return preg_match('#^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])$#', $time24Hour);
+        
+        // No need to sanitize further, a regex will do
+        // [0-9] is equivalent to \d
+        // 0 left padding - so [01]\d instad of [01]?\d (02:00 instead of 2:00)
+        // DRY - don't repeat yourself, the 00-59 minute/second block can appear once or twice
+        // Don't use capturing blocks if you don't need them - (?:) instead of ()
+        // preg_match returns 0,1 or false; expected return value is boolean
+        return !!preg_match('#^(?:[01]\d|2[0-3])(?:\:[0-5]\d){1,2}$#', $time24Hour);
     }
     
 }
